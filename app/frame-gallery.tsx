@@ -288,7 +288,7 @@ export default function FrameGallery() {
     </header>
 
     <section className="gallery-shell" id="top">
-      <div className="gallery-heading"><div><p>PROFILE FRAME ARCHIVE</p><h1>한코코 프레임 공유소</h1><span>프로필 프레임을 골라 한코코로 바로 가져가세요.</span></div><div className="frame-count"><b>{frames.length}</b><small>FRAMES</small></div></div>
+      <div className="gallery-heading"><div><p>PROFILE FRAME ARCHIVE</p></div><div className="frame-count"><b>{frames.length}</b><small>FRAMES</small></div></div>
       <div className="gallery-toolbar">
         <Tabs value={sort} onValueChange={(value) => setSort(value as SortKey)}><TabsList className="sort-tabs"><TabsTrigger value="recommended">추천순</TabsTrigger><TabsTrigger value="newest">최신순</TabsTrigger><TabsTrigger value="liked">좋아요순</TabsTrigger></TabsList></Tabs>
         <button className={showBookmarks ? "bookmark-filter active" : "bookmark-filter"} type="button" onClick={() => setShowBookmarks((current) => !current)}><Bookmark size={17} fill={showBookmarks ? "currentColor" : "none"} />북마크 {bookmarks.size}</button>
@@ -300,6 +300,6 @@ export default function FrameGallery() {
         <div className="frame-actions"><button className={frame.liked ? "like active" : "like"} type="button" onClick={() => void toggleLike(frame)}><Heart size={17} fill={frame.liked ? "currentColor" : "none"} />{frame.likesCount}</button><button className="import" type="button" onClick={() => importToHankoko(frame)}><Download size={17} />한코코로 불러오기</button><button className="report" type="button" onClick={() => void reportFrame(frame)} aria-label="신고"><Flag size={16} /></button></div>
       </article>)}</div> : <div className="empty-gallery"><div><ImagePlus size={36} /></div><h2>{showBookmarks ? "저장한 프레임이 없습니다" : "첫 프레임을 기다리고 있어요"}</h2><p>{showBookmarks ? "마음에 드는 프레임의 북마크 버튼을 눌러 보관하세요." : "512×512 이상의 프레임 이미지를 가장 먼저 공유해 보세요."}</p>{!showBookmarks && <button type="button" onClick={() => setUploadOpen(true)}><Upload size={17} />프레임 올리기</button>}</div>}
     </section>
-    <footer className="site-footer"><span>HANKOKO FRAME SHARE</span><p>신고 10회가 누적된 이미지는 즉시 공개 중단 및 삭제됩니다.</p></footer>
+    <footer className="site-footer"><span>HANKOKO FRAME SHARE</span></footer>
   </main>;
 }
