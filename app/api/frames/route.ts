@@ -2,6 +2,49 @@ import { frameFromRow, ipIdentity, json, optionsResponse, readPngSize, siteEnv, 
 
 const SHAPE_TAGS = ["원형", "둥근 사각형", "사각형"] as const;
 
+type ModerationResult = {
+  results?: Array<{ flagged?: boolean }>;
+};
+
+async function moderateUpload(apiKey: string, bytes: Uint8Array, text: string) {
+  const body = JSON.stringify({
+    model: "omni-moderation-latest",
+    input: [
+      { type: "text", text },
+      { type: "image_url", image_url: { url: `data:image/png;base64,${toBase64(bytes)}` } },
+    ],
+  });
+
+  const inspect = () => fetch("https://api.openai.com/v1/moderations", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body,
+  });
+
+  let response: Response;
+  try {
+    response = await inspect();
+    if (response.status === 429 || response.status >= 500) {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      response = await inspect();
+    }
+  } catch {
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    response = await inspect();
+  }
+
+  let result: ModerationResult = {};
+  try {
+    result = await response.json() as ModerationResult;
+  } catch {
+    // The HTTP status below still provides a useful client-facing error.
+  }
+  return { response, result };
+}
+
 export function OPTIONS(request: Request) {
   return optionsResponse(request);
 }
@@ -75,25 +118,34 @@ export async function POST(request: Request) {
     return json(request, { error: "512×512 이상의 1:1 이미지가 필요합니다." }, { status: 400 });
   }
 
-  const moderation = await fetch("https://api.openai.com/v1/moderations", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "omni-moderation-latest",
-      input: [
-        { type: "text", text: [nicknameInput, shapeTag, ...uniqueTags].filter(Boolean).join(" ") || "character frame" },
-        { type: "image_url", image_url: { url: `data:image/png;base64,${toBase64(bytes)}` } },
-      ],
-    }),
-  });
-  if (!moderation.ok) {
-    return json(request, { error: "이미지 검사에 실패했습니다. 잠시 후 다시 시도해 주세요." }, { status: 502 });
+  let moderation: Awaited<ReturnType<typeof moderateUpload>>;
+  try {
+    moderation = await moderateUpload(
+      OPENAI_API_KEY,
+      bytes,
+      [nicknameInput, shapeTag, ...uniqueTags].filter(Boolean).join(" ") || "character frame",
+    );
+  } catch {
+    return json(request, { error: "이미지 검사 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요." }, { status: 503 });
   }
-  const moderationResult = await moderation.json() as { results?: Array<{ flagged?: boolean }> };
-  if (moderationResult.results?.[0]?.flagged) {
+  if (!moderation.response.ok) {
+    const retryAfter = moderation.response.headers.get("retry-after");
+    const headers = retryAfter ? { "Retry-After": retryAfter } : undefined;
+    if (moderation.response.status === 429) {
+      return json(request, { error: "이미지 검사 요청 한도를 초과했습니다. 잠시 후 다시 시도해 주세요." }, { status: 503, headers });
+    }
+    if (moderation.response.status === 401 || moderation.response.status === 403) {
+      return json(request, { error: "이미지 검사 설정을 확인할 수 없습니다. 운영자에게 알려 주세요." }, { status: 503 });
+    }
+    if (moderation.response.status === 400 || moderation.response.status === 413) {
+      return json(request, { error: "이미지를 검사할 수 없는 형식 또는 용량입니다." }, { status: 422 });
+    }
+    return json(request, { error: "이미지 검사 서버가 응답하지 않습니다. 잠시 후 다시 시도해 주세요." }, { status: 503 });
+  }
+  if (!moderation.result.results?.length) {
+    return json(request, { error: "이미지 검사 결과를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요." }, { status: 503 });
+  }
+  if (moderation.result.results[0]?.flagged) {
     return json(request, { error: "커뮤니티 기준에 맞지 않는 이미지로 판단되어 업로드할 수 없습니다." }, { status: 422 });
   }
 
