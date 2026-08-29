@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bookmark, Download, Flag, Heart, ImagePlus, LoaderCircle, Plus, Sparkles, Upload, X } from "lucide-react";
+import { Bookmark, Download, Flag, Heart, ImagePlus, LoaderCircle, Plus, Search, Sparkles, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -44,6 +44,7 @@ export default function FrameGallery() {
   const [loading, setLoading] = useState(true);
   const [bookmarks, setBookmarks] = useState<Set<string>>(new Set());
   const [showBookmarks, setShowBookmarks] = useState(false);
+  const [query, setQuery] = useState("");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
   const [imageMeta, setImageMeta] = useState<ImageMeta | null>(null);
@@ -82,10 +83,15 @@ export default function FrameGallery() {
 
   useEffect(() => () => { if (imageUrl) URL.revokeObjectURL(imageUrl); }, [imageUrl]);
 
-  const visibleFrames = useMemo(
-    () => showBookmarks ? frames.filter((frame) => bookmarks.has(frame.id)) : frames,
-    [bookmarks, frames, showBookmarks],
-  );
+  const visibleFrames = useMemo(() => {
+    const normalized = query.trim().toLocaleLowerCase("ko-KR");
+    return frames.filter((frame) => {
+      if (showBookmarks && !bookmarks.has(frame.id)) return false;
+      if (!normalized) return true;
+      return [frame.nickname, frame.shapeTag, ...frame.tags]
+        .some((value) => value.toLocaleLowerCase("ko-KR").includes(normalized));
+    });
+  }, [bookmarks, frames, query, showBookmarks]);
 
   const cropLimit = useCallback((zoom: number, meta = imageMeta) => {
     if (!meta) return { x: 0, y: 0 };
@@ -288,8 +294,8 @@ export default function FrameGallery() {
     </header>
 
     <section className="gallery-shell" id="top">
-      <div className="gallery-heading"><div><p>PROFILE FRAME ARCHIVE</p></div><div className="frame-count"><b>{frames.length}</b><small>FRAMES</small></div></div>
       <div className="gallery-toolbar">
+        <label className="frame-search"><Search size={18} /><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="닉네임·태그 검색" aria-label="프레임 검색" />{query && <button type="button" onClick={() => setQuery("")} aria-label="검색어 지우기"><X size={16} /></button>}</label>
         <Tabs value={sort} onValueChange={(value) => setSort(value as SortKey)}><TabsList className="sort-tabs"><TabsTrigger value="recommended">추천순</TabsTrigger><TabsTrigger value="newest">최신순</TabsTrigger><TabsTrigger value="liked">좋아요순</TabsTrigger></TabsList></Tabs>
         <button className={showBookmarks ? "bookmark-filter active" : "bookmark-filter"} type="button" onClick={() => setShowBookmarks((current) => !current)}><Bookmark size={17} fill={showBookmarks ? "currentColor" : "none"} />북마크 {bookmarks.size}</button>
       </div>
@@ -298,7 +304,7 @@ export default function FrameGallery() {
         <div className="frame-image"><img src={frame.imageUrl} alt={`${frame.nickname}의 프로필 프레임`} /><button className={bookmarks.has(frame.id) ? "bookmark-card active" : "bookmark-card"} type="button" onClick={() => toggleBookmark(frame.id)} aria-label="북마크"><Bookmark size={19} fill={bookmarks.has(frame.id) ? "currentColor" : "none"} /></button></div>
         <div className="frame-info"><div><b>{frame.nickname}</b><small>{displayDate(frame.createdAt)}</small></div><div className="frame-tags">{frame.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div></div>
         <div className="frame-actions"><button className={frame.liked ? "like active" : "like"} type="button" onClick={() => void toggleLike(frame)}><Heart size={17} fill={frame.liked ? "currentColor" : "none"} />{frame.likesCount}</button><button className="import" type="button" onClick={() => importToHankoko(frame)}><Download size={17} />한코코로 불러오기</button><button className="report" type="button" onClick={() => void reportFrame(frame)} aria-label="신고"><Flag size={16} /></button></div>
-      </article>)}</div> : <div className="empty-gallery"><div><ImagePlus size={36} /></div><h2>{showBookmarks ? "저장한 프레임이 없습니다" : "첫 프레임을 기다리고 있어요"}</h2><p>{showBookmarks ? "마음에 드는 프레임의 북마크 버튼을 눌러 보관하세요." : "512×512 이상의 프레임 이미지를 가장 먼저 공유해 보세요."}</p>{!showBookmarks && <button type="button" onClick={() => setUploadOpen(true)}><Upload size={17} />프레임 올리기</button>}</div>}
+      </article>)}</div> : <div className="empty-gallery"><div>{query ? <Search size={36} /> : <ImagePlus size={36} />}</div><h2>{query ? "검색 결과가 없습니다" : showBookmarks ? "저장한 프레임이 없습니다" : "첫 프레임을 기다리고 있어요"}</h2><p>{query ? "다른 닉네임이나 태그로 다시 검색해 보세요." : showBookmarks ? "마음에 드는 프레임의 북마크 버튼을 눌러 보관하세요." : "512×512 이상의 프레임 이미지를 가장 먼저 공유해 보세요."}</p>{!query && !showBookmarks && <button type="button" onClick={() => setUploadOpen(true)}><Upload size={17} />프레임 올리기</button>}</div>}
     </section>
     <footer className="site-footer"><span>HANKOKO FRAME SHARE</span></footer>
   </main>;
